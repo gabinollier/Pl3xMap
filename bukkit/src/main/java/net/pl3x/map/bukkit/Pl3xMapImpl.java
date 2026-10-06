@@ -49,9 +49,10 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.biome.Biome;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.RedStoneWireBlock;
-import net.minecraft.world.level.levelgen.feature.ConfiguredFeature;
-import net.minecraft.world.level.levelgen.feature.configurations.SimpleBlockConfiguration;
+import net.minecraft.world.level.block.RedstoneWireBlock;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.feature.Feature;
+import net.minecraft.world.level.levelgen.feature.SimpleBlockFeature;
 import net.minecraft.world.level.levelgen.placement.PlacedFeature;
 import net.pl3x.map.core.Pl3xMap;
 import net.pl3x.map.core.log.Logger;
@@ -72,8 +73,8 @@ public class Pl3xMapImpl extends Pl3xMap {
 
     private BukkitAudiences adventure;
     private Path jarPath;
-    private Map<Biome, List<ConfiguredFeature<?,?>>> biomeFeatureCache = new LinkedHashMap<>();
-    ArrayList<ResourceKey<ConfiguredFeature<?, ?>>> canSpawnFromBonemealList = new ArrayList<>(10);
+    private Map<Biome, List<Feature>> biomeFeatureCache = new LinkedHashMap<>();
+    List<ResourceKey<Feature>> canSpawnFromBonemealList = new ArrayList<>(10);
 
     public Pl3xMapImpl(JavaPlugin plugin) {
         super(true);
@@ -166,27 +167,24 @@ public class Pl3xMapImpl extends Pl3xMap {
 
     @Override
     public int getColorForPower(byte power) {
-        return RedStoneWireBlock.getColorForPower(power);
+        return RedstoneWireBlock.getColorForPower(power);
     }
 
-    private List<ConfiguredFeature<?,?>> getBoneMealFeatures(Biome biome) {
+    private List<Feature> getBoneMealFeatures(Biome biome) {
         // https://github.com/Draradech/FlowerMap (CC0-1.0 license)
         // the biomes created from the builtin registry are missing tags
         // with the new can_spawn_from_bonemeal tag for vegetation features we can no longer just call getFlowerFeatures (now called getBonemealFeatures)
         // iterate through the feature stream and collect matching features manually
-        if (!biomeFeatureCache.containsKey(biome)) {
-            biomeFeatureCache.put(biome,
-                    biome.getGenerationSettings().features().stream()
-                            .flatMap(HolderSet::stream)
-                            .flatMap(feature -> ((PlacedFeature) feature.value()).getFeatures())
-                            .filter(feature -> {
-                                Optional<ResourceKey<ConfiguredFeature<?, ?>>> key = feature.unwrapKey();
-                                return key.isPresent() && canSpawnFromBonemealList.contains(key.get());
-                            })
-                            .map(Holder::value)
-                            .collect(ImmutableList.toImmutableList()));
-        }
-        return biomeFeatureCache.get(biome);
+        return biomeFeatureCache.computeIfAbsent(biome, b ->
+                b.getGenerationSettings().features().stream()
+                        .flatMap(HolderSet::stream)
+                        .flatMap(feature -> ((PlacedFeature) feature.value()).getFeatures())
+                        .filter(feature -> {
+                            Optional<ResourceKey<Feature>> key = feature.unwrapKey();
+                            return key.isPresent() && canSpawnFromBonemealList.contains(key.get());
+                        })
+                        .map(Holder::value)
+                        .collect(ImmutableList.toImmutableList()));
     }
 
     @Override
@@ -196,13 +194,15 @@ public class Pl3xMapImpl extends Pl3xMap {
         if (nms == null) {
             return null;
         }
-        List<ConfiguredFeature<?, ?>> flowers = this.getBoneMealFeatures(nms);
+        List<Feature> flowers = this.getBoneMealFeatures(nms);
         if (flowers.isEmpty()) {
             return null;
         }
-        SimpleBlockConfiguration flowerMap = (SimpleBlockConfiguration) flowers.getFirst().config();
-        Block block = flowerMap.toPlace().getState(world.getLevel(), this.randomSource, new BlockPos(blockX, blockY, blockZ)).getBlock();
-        return getBlockRegistry().get(BuiltInRegistries.BLOCK.getKey(block).toString());
+        if (!(flowers.getFirst() instanceof SimpleBlockFeature flower)) {
+            return null;
+        }
+        BlockState state = flower.toPlace().value().getState(world.getLevel(), this.randomSource, new BlockPos(blockX, blockY, blockZ));
+        return getBlockRegistry().get(BuiltInRegistries.BLOCK.getKey(state.getBlock()).toString());
     }
 
     @Override

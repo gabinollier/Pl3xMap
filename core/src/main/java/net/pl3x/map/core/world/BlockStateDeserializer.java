@@ -25,16 +25,26 @@
 package net.pl3x.map.core.world;
 
 import de.bluecolored.bluenbt.NBTReader;
+import de.bluecolored.bluenbt.TagType;
 import de.bluecolored.bluenbt.TypeDeserializer;
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import net.pl3x.map.core.Pl3xMap;
+import org.jspecify.annotations.Nullable;
 
 public class BlockStateDeserializer implements TypeDeserializer<BlockState> {
 
     @Override
     public BlockState read(NBTReader reader) throws IOException {
+        // 1.26.3+ serializes block states using BlockState.CODEC:
+        //   - default state -> plain string ("minecraft:stone")
+        //   - custom state  -> compound ({id: "...", properties: {...}})
+        // String entries inside a heterogeneous NBT list are wrapped as {"": "..."}
+        if (reader.peek() == TagType.STRING) {
+            return getBlockState(reader.nextString(), null);
+        }
+
         reader.beginCompound();
 
         String id = null;
@@ -42,13 +52,22 @@ public class BlockStateDeserializer implements TypeDeserializer<BlockState> {
 
         while (reader.hasNext()) {
             switch (reader.name()) {
-                case "Name" -> id = reader.nextString();
-                case "Properties" -> {
+                case "Name", "id" -> id = reader.nextString();
+                case "Properties", "properties" -> {
                     properties = new LinkedHashMap<>();
                     reader.beginCompound();
                     while (reader.hasNext())
                         properties.put(reader.name(), reader.nextString());
                     reader.endCompound();
+                }
+                case "" -> {
+                    // unwrap {"": "minecraft:stone"} written for non-compound
+                    // entries of a heterogeneous NBT list
+                    if (reader.peek() == TagType.STRING) {
+                        id = reader.nextString();
+                    } else {
+                        reader.skip();
+                    }
                 }
                 default -> reader.skip();
             }
@@ -56,6 +75,10 @@ public class BlockStateDeserializer implements TypeDeserializer<BlockState> {
 
         reader.endCompound();
 
+        return getBlockState(id, properties);
+    }
+
+    private BlockState getBlockState(@Nullable String id, @Nullable Map<String, String> properties) {
         if (id == null) return Blocks.AIR.getDefaultState();
 
         Block block = Pl3xMap.api().getBlockRegistry().getOrDefault(id, Blocks.AIR);
