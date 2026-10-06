@@ -54,7 +54,7 @@ public class UpdateMarkerData extends AbstractDataTask {
 
                 if (now - lastUpdated > Math.max(TickUtil.toMilliseconds(layer.getUpdateInterval()), 1000)) {
                     List<Marker<?>> list = new ArrayList<>(layer.getMarkers());
-                    FileUtil.writeJson(this.gson.toJson(list), this.world.getMarkersDirectory().resolve(key.replace(":", "-") + ".json"));
+                    FileUtil.writeJsonIfChanged(this.gson.toJson(list), this.world.getMarkersDirectory().resolve(key.replace(":", "-") + ".json"));
                     this.lastUpdated.put(key, now);
                 }
             } catch (Throwable t) {
@@ -62,6 +62,6 @@ public class UpdateMarkerData extends AbstractDataTask {
             }
         });
 
-        FileUtil.writeJson(this.gson.toJson(layers), this.world.getTilesDirectory().resolve("markers.json"));
+        FileUtil.writeJsonIfChanged(this.gson.toJson(layers), this.world.getTilesDirectory().resolve("markers.json"));
     }
 }

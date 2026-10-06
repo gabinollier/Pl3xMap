@@ -49,6 +49,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
@@ -64,6 +66,8 @@ import org.jspecify.annotations.Nullable;
 
 @NullMarked
 public class FileUtil {
+    private static final Map<Path, String> LAST_WRITTEN_JSON = new ConcurrentHashMap<>();
+
     public static Path getTilesDir() {
         return getWebDir().resolve("tiles");
     }
@@ -154,6 +158,26 @@ public class FileUtil {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Write the given json to the given file, but only if the contents
+     * actually changed since the last write.
+     * <p>
+     * This avoids rewriting static files (settings, markers, etc.) on every
+     * server tick, which otherwise causes a huge amount of unnecessary disk IO.
+     *
+     * @param str  json string to write
+     * @param file file to write to
+     */
+    public static void writeJsonIfChanged(String str, Path file) {
+        Path key = file.toAbsolutePath().normalize();
+        // always (re)write if the file was removed externally (e.g. resetmap)
+        if (Files.exists(key) && str.equals(LAST_WRITTEN_JSON.get(key))) {
+            return;
+        }
+        writeJson(str, file);
+        LAST_WRITTEN_JSON.put(key, str);
     }
 
     public static void saveGzip(String json, Path file) throws IOException {

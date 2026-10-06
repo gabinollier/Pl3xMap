@@ -126,7 +126,7 @@ public class UpdateSettingsData extends Task {
             settings.put("zoom", zoom);
             settings.put("ui", ui);
 
-            FileUtil.writeJson(this.gson.toJson(settings), world.getTilesDirectory().resolve("settings.json"));
+            FileUtil.writeJsonIfChanged(this.gson.toJson(settings), world.getTilesDirectory().resolve("settings.json"));
 
             List<Object> renderers = new ArrayList<>();
             world.getRenderers().forEach((rendererKey, builder) -> {
@@ -193,7 +193,7 @@ public class UpdateSettingsData extends Task {
 
         if (fileTick++ >= 20) {
             fileTick = 0;
-            FileUtil.writeJson(json, FileUtil.getTilesDir().resolve("settings.json"));
+            FileUtil.writeJsonIfChanged(json, FileUtil.getTilesDir().resolve("settings.json"));
         }
     }
 }

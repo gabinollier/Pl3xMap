@@ -39,6 +39,7 @@ import org.jspecify.annotations.NullMarked;
 public class RegionModifiedState {
     private final Map<Long, Long> regionModifiedStates = new ConcurrentHashMap<>(); // <pos, modified>
     private final File file;
+    private volatile boolean dirty = false;
 
     public RegionModifiedState(World world) {
         this.file = world.getTilesDirectory().resolve(".rms").toFile();
@@ -56,6 +57,7 @@ public class RegionModifiedState {
 
     public void set(long regionPos, long modified) {
         this.regionModifiedStates.put(regionPos, modified);
+        this.dirty = true;
     }
 
     public long get(long regionPos) {
@@ -64,6 +66,11 @@ public class RegionModifiedState {
     }
 
     public void save() {
+        // nothing changed since the last save, don't touch the disk
+        if (!this.dirty) {
+            return;
+        }
+        this.dirty = false;
         try (DataOutputStream out = new DataOutputStream(new GZIPOutputStream(new FileOutputStream(this.file)))) {
             out.writeInt(this.regionModifiedStates.size());
             for (Map.Entry<Long, Long> entry : this.regionModifiedStates.entrySet()) {
