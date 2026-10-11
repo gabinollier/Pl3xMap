@@ -1,3 +1,5 @@
+This is a fork of Pl3xMap updated to Minecraft 26.3 with corrected disk writes frequency. The following is Pl3xMap README.
+
 <div align="center">
 
 <picture>
